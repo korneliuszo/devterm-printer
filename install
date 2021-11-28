@@ -1,0 +1,8 @@
+Add line:
+user_overlays=mtp02-a06-devterm
+to: 
+/boot/armbianEnv.txt
+Copy:
+mtp02-a06-devterm.dtbo
+to:
+/boot/overlay-user/

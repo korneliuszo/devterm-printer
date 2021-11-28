@@ -1,0 +1,2 @@
+sudo apt install linux-headers-current-rockchip64 dkms
+sudo systemctl disable devterm-printer

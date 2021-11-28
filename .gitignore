@@ -1,0 +1,9 @@
+*.cmd
+*.tmp
+.project
+*.symvers
+*.o
+*.order
+*.dtbo
+*.ko
+*.mod*

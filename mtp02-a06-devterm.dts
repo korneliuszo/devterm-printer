@@ -1,0 +1,51 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+
+&spidev0 {
+	status = "disabled";
+};
+
+&spi4 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	printer0: printer@0 {
+		compatible = "devterm,printer-mtp02";
+		reg = <0>;
+		spi-max-frequency = <4500000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&printer_pinmux>;
+
+		latch-gpio = <&gpio3 RK_PA6 GPIO_ACTIVE_LOW>;
+		strobe-gpio = <&gpio3 RK_PA7 GPIO_ACTIVE_HIGH>;
+
+		pa-gpio =  <&gpio3 RK_PC0 GPIO_ACTIVE_HIGH>;
+		pan-gpio = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>;
+		pb-gpio =  <&gpio3 RK_PB5 GPIO_ACTIVE_HIGH>;
+		pbn-gpio = <&gpio4 RK_PD5 GPIO_ACTIVE_HIGH>;
+
+		pwr-gpio = <&gpio3 RK_PA3 GPIO_ACTIVE_HIGH>;
+		pap-gpio = <&gpio3 RK_PA4 GPIO_ACTIVE_HIGH>;
+
+		status = "okay";
+	};
+};
+
+&pinctrl {
+	printer {
+		printer_pinmux: printer-pinmux {
+			rockchip,pins =
+				<3 RK_PA6 RK_FUNC_GPIO &pcfg_pull_none>, //latch
+				<3 RK_PA7 RK_FUNC_GPIO &pcfg_pull_none>, //strobe
+				<3 RK_PC0 RK_FUNC_GPIO &pcfg_pull_none>, //PA
+				<3 RK_PC1 RK_FUNC_GPIO &pcfg_pull_none>, //PNA
+				<3 RK_PB5 RK_FUNC_GPIO &pcfg_pull_none>, //PB
+				<4 RK_PD5 RK_FUNC_GPIO &pcfg_pull_none>, //PNB		
+				<3 RK_PA3 RK_FUNC_GPIO &pcfg_pull_none>, //power		
+				<3 RK_PA4 RK_FUNC_GPIO &pcfg_pull_none>; //paper
+		};
+	};
+};
