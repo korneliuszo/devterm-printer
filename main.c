@@ -38,6 +38,7 @@ struct mtp02_device {
 	int pa_step;
 	uint8_t temp[48];
 	int byte_in_line;
+	int default_close_feed;
 	atomic_t used;
 };
 
@@ -126,7 +127,7 @@ static int mtp02_release(struct inode *inode, struct file *file)
 {
 	struct mtp02_device * device = file->private_data;
 
-	mtp02_step(device, 230);
+	mtp02_step(device, device->default_close_feed);
 
 	gpiod_set_value(device->pwr_gpio,0);
 
@@ -294,6 +295,13 @@ static int mtp02_probe(struct spi_device *spi)
 	retval = setup_gpio(device);
 	if (retval) {
 		dev_dbg(&spi->dev, "setup of GPIOs failed");
+		goto GPIO_failed;
+	}
+
+	retval = device_property_read_u32(&spi->dev, "close-feed",
+			&device->default_close_feed);
+	if (retval) {
+		dev_dbg(&spi->dev, "close-feed error");
 		goto GPIO_failed;
 	}
 

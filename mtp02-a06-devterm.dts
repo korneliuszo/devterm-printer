@@ -30,6 +30,8 @@
 		pwr-gpio = <&gpio3 RK_PA3 GPIO_ACTIVE_HIGH>;
 		pap-gpio = <&gpio3 RK_PA4 GPIO_ACTIVE_HIGH>;
 
+		close-feed = <230>;
+
 		status = "okay";
 	};
 };
