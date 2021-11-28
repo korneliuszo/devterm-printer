@@ -12,6 +12,8 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/gpio/consumer.h>
 
+#include "mtp02-ioctl.h"
+
 #define MAX_DEV BIT(MINORBITS) /*32*/	/* ... up to 256 */
 
 struct mtp02_device {
@@ -39,6 +41,7 @@ struct mtp02_device {
 	uint8_t temp[48];
 	int byte_in_line;
 	int default_close_feed;
+	struct mtp02_settings settings;
 	atomic_t used;
 };
 
@@ -119,6 +122,12 @@ static int mtp02_open(struct inode *inode, struct file *file)
 	gpiod_set_value(device->pwr_gpio,1);
 	mtp02_step(device,0);
 	device->byte_in_line = 0;
+
+	device->settings.close_feed = device->default_close_feed;
+	device->settings.line_feed = 2;
+	device->settings.burn_time = 250;
+	device->settings.burn_count = 10;
+
     printk("mtp02: Device open\n");
     return 0;
 }
@@ -127,7 +136,7 @@ static int mtp02_release(struct inode *inode, struct file *file)
 {
 	struct mtp02_device * device = file->private_data;
 
-	mtp02_step(device, device->default_close_feed);
+	mtp02_step(device, device->settings.close_feed);
 
 	gpiod_set_value(device->pwr_gpio,0);
 
@@ -139,6 +148,33 @@ static int mtp02_release(struct inode *inode, struct file *file)
 
 static long mtp02_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
+	struct mtp02_device * device = file->private_data;
+
+	switch(cmd){
+	case MTP02_FEED:
+		mtp02_step(device, (int)arg);
+		break;
+	case MTP02_GET_SETTINGS:
+	{
+		int ret = copy_to_user((void __user *)arg,&device->settings, sizeof(device->settings));
+        if(ret < 0){
+            printk("Error in MTP02_GET_SETTINGS\n");
+            return -1;
+        }
+		break;
+	}
+	case MTP02_SET_SETTINGS:
+	{
+		int ret = copy_from_user(&device->settings, (void __user *)arg, sizeof(device->settings));
+        if(ret < 0){
+            printk("Error in MTP02_SET_SETTINGS\n");
+            return -1;
+        }
+		break;
+	}
+    default :
+        return -ENOTTY;
+	}
     return 0;
 }
 
@@ -152,10 +188,11 @@ static void mtp02_burn(struct mtp02_device *device,uint8_t *buf)
 	ndelay(25);
 	{
 		int i;
-		for(i=0;i<10;i++)
+		int burn_count = device->settings.burn_count;
+		for(i=0;i<burn_count;i++)
 		{
 			gpiod_set_value(device->strobe_gpio,1);
-			udelay(250);
+			udelay(device->settings.burn_time);
 			gpiod_set_value(device->strobe_gpio,0);
 			udelay(14);
 		}
@@ -186,7 +223,7 @@ static ssize_t mtp02_write(struct file *file, const char __user *buf, size_t cou
 			memcpy(&buf[i],&device->temp[i],6);
 			mtp02_burn(device,buf);
 		}
-		mtp02_step(device,2);
+		mtp02_step(device,device->settings.line_feed);
 		device->byte_in_line=0;
 	}
 	return bytes_writen;
