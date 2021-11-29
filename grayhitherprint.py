@@ -17,7 +17,7 @@ if wpercent < 1:
 	img = img.resize((basewidth,hsize), Image.ANTIALIAS)
 
 ki = img.convert("RGB")
-pal_pal = hitherdither.palette.Palette([0x000000,0x0f0f0f,0xffffff])
+pal_pal = hitherdither.palette.Palette([0x000000,0x3f3f3f,0xffffff])
 ki = hitherdither.ordered.yliluoma.yliluomas_1_ordered_dithering(
     ki, pal_pal, order=8)
 
