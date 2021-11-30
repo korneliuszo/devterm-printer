@@ -79,6 +79,12 @@ static void mtp02_step_setup(struct mtp02_device * device, int step)
 	gpiod_set_value(device->pbn_gpio,steps[step].pbn);
 
 }
+
+static bool mtp02_is_paper(struct mtp02_device * device)
+{
+	return !(gpiod_get_value(device->pap_gpio));
+}
+
 static void mtp02_step(struct mtp02_device * device, int steps)
 {
 	int i;
@@ -129,6 +135,14 @@ static int mtp02_open(struct inode *inode, struct file *file)
 	device->settings.burn_count = 10;
 
     printk("mtp02: Device open\n");
+
+    if(!mtp02_is_paper(device))
+    {
+    	gpiod_set_value(device->pwr_gpio,0);
+    	atomic_set(&device->used,0);
+    	return -EBUSY;
+    }
+
     return 0;
 }
 
@@ -150,6 +164,10 @@ static long mtp02_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct mtp02_device * device = file->private_data;
 
+	if(!mtp02_is_paper(device))
+	{
+		return -EBUSY;
+	}
 	switch(cmd){
 	case MTP02_FEED:
 		mtp02_step(device, (int)arg);
@@ -205,6 +223,12 @@ static ssize_t mtp02_write(struct file *file, const char __user *buf, size_t cou
 	int maxbytes; /* maximum bytes that can be read from ppos to BUFFER_SIZE*/
 	int bytes_to_write; /* gives the number of bytes to write*/
 	int bytes_writen; /* number of bytes actually writen*/
+
+	if(!mtp02_is_paper(device))
+	{
+		return -EBUSY;
+	}
+
 	maxbytes = 48 - device->byte_in_line;
 	if (maxbytes > count)
 		bytes_to_write = count;
