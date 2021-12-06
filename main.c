@@ -53,8 +53,8 @@ static struct class *mtp02_class = NULL;
 
 static int mtp02_uevent(struct device *dev, struct kobj_uevent_env *env)
 {
-    add_uevent_var(env, "DEVMODE=%#o", 0666);
-    return 0;
+	add_uevent_var(env, "DEVMODE=%#o", 0666);
+	return 0;
 }
 
 static const struct {
@@ -63,13 +63,13 @@ static const struct {
 	bool pb;
 	bool pbn;
 } steps[] =
-		{
-				{0,1,0,1},
-				{0,1,1,0},
-				{1,0,1,0},
-				{1,0,0,1},
-				{0,0,0,0},
-		};
+{
+		{0,1,0,1},
+		{0,1,1,0},
+		{1,0,1,0},
+		{1,0,0,1},
+		{0,0,0,0},
+};
 
 static void mtp02_step_setup(struct mtp02_device * device, int step)
 {
@@ -134,16 +134,16 @@ static int mtp02_open(struct inode *inode, struct file *file)
 	device->settings.burn_time = 250;
 	device->settings.burn_count = 10;
 
-    printk("mtp02: Device open\n");
+	printk("mtp02: Device open\n");
 
-    if(!mtp02_is_paper(device))
-    {
-    	gpiod_set_value(device->pwr_gpio,0);
-    	atomic_set(&device->used,0);
-    	return -EBUSY;
-    }
+	if(!mtp02_is_paper(device))
+	{
+		gpiod_set_value(device->pwr_gpio,0);
+		atomic_set(&device->used,0);
+		return -EBUSY;
+	}
 
-    return 0;
+	return 0;
 }
 
 static int mtp02_release(struct inode *inode, struct file *file)
@@ -155,8 +155,8 @@ static int mtp02_release(struct inode *inode, struct file *file)
 	gpiod_set_value(device->pwr_gpio,0);
 
 	atomic_set(&device->used,0);
-    printk("mtp02: Device close\n");
-    return 0;
+	printk("mtp02: Device close\n");
+	return 0;
 }
 
 
@@ -175,25 +175,25 @@ static long mtp02_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case MTP02_GET_SETTINGS:
 	{
 		int ret = copy_to_user((void __user *)arg,&device->settings, sizeof(device->settings));
-        if(ret < 0){
-            printk("Error in MTP02_GET_SETTINGS\n");
-            return -1;
-        }
+		if(ret < 0){
+			printk("Error in MTP02_GET_SETTINGS\n");
+			return -1;
+		}
 		break;
 	}
 	case MTP02_SET_SETTINGS:
 	{
 		int ret = copy_from_user(&device->settings, (void __user *)arg, sizeof(device->settings));
-        if(ret < 0){
-            printk("Error in MTP02_SET_SETTINGS\n");
-            return -1;
-        }
+		if(ret < 0){
+			printk("Error in MTP02_SET_SETTINGS\n");
+			return -1;
+		}
 		break;
 	}
-    default :
-        return -ENOTTY;
+	default :
+		return -ENOTTY;
 	}
-    return 0;
+	return 0;
 }
 
 static void mtp02_burn(struct mtp02_device *device,uint8_t *buf)
@@ -312,11 +312,11 @@ static void mtp02_free_minor(struct mtp02_device *dev)
 }
 
 static const struct file_operations mtp02_fops = {
-    .owner      = THIS_MODULE,
-    .open       = mtp02_open,
-    .release    = mtp02_release,
-    .unlocked_ioctl = mtp02_ioctl,
-    .write       = mtp02_write
+		.owner      = THIS_MODULE,
+		.open       = mtp02_open,
+		.release    = mtp02_release,
+		.unlocked_ioctl = mtp02_ioctl,
+		.write       = mtp02_write
 };
 
 static int mtp02_probe(struct spi_device *spi)
@@ -335,8 +335,8 @@ static int mtp02_probe(struct spi_device *spi)
 	}
 
 	dev_dbg(&spi->dev,
-		"spi interface setup: mode 0x%2x, %d bits per word, %dhz max speed",
-		spi->mode, spi->bits_per_word, spi->max_speed_hz);
+			"spi interface setup: mode 0x%2x, %d bits per word, %dhz max speed",
+			spi->mode, spi->bits_per_word, spi->max_speed_hz);
 
 	/* Allocate driver data */
 	device = kzalloc(sizeof(*device), GFP_KERNEL);
@@ -376,20 +376,20 @@ static int mtp02_probe(struct spi_device *spi)
 	/* create device */
 	device->devt = MKDEV(MAJOR(mtp02_dev), device->minor);
 	device->dev = device_create(mtp02_class,
-				    &spi->dev,
-				    device->devt,
-				    device,
-				    "mtp02.%d",
-				    device->minor);
+			&spi->dev,
+			device->devt,
+			device,
+			"mtp02.%d",
+			device->minor);
 	if (IS_ERR(device->dev)) {
 		pr_err("mtp02: device register failed\n");
 		retval = PTR_ERR(device->dev);
 		goto device_create_failed;
 	} else {
 		dev_dbg(device->dev,
-			"created device for major %d, minor %d\n",
-			MAJOR(mtp02_dev),
-			device->minor);
+				"created device for major %d, minor %d\n",
+				MAJOR(mtp02_dev),
+				device->minor);
 	}
 
 	/* create cdev */
@@ -412,14 +412,14 @@ static int mtp02_probe(struct spi_device *spi)
 
 	return 0;
 
-del_cdev:
+	del_cdev:
 	cdev_del(device->cdev);
-cdev_failed:
+	cdev_failed:
 	device_destroy(mtp02_class, device->devt);
-device_create_failed:
+	device_create_failed:
 	mtp02_free_minor(device);
-minor_failed:
-GPIO_failed:
+	minor_failed:
+	GPIO_failed:
 	kfree(device);
 
 	return retval;
@@ -444,34 +444,34 @@ static int mtp02_remove(struct spi_device *spi)
 }
 
 static const struct of_device_id mtp02_dt_ids[] = {
-	{ .compatible = "devterm,printer-mtp02" },
-	{},
+		{ .compatible = "devterm,printer-mtp02" },
+		{},
 };
 
 MODULE_DEVICE_TABLE(of, mtp02_dt_ids);
 
 static const struct spi_device_id mtp02_device_id[] = {
-    { "printer-mtp02", 0 },
-    { }
+		{ "printer-mtp02", 0 },
+		{ }
 };
 MODULE_DEVICE_TABLE(spi, mtp02_device_id);
 
 static struct spi_driver mtp02_spi_driver = {
-	.driver = {
-		.name =		"mtp02",
-		.owner =	THIS_MODULE,
-		.of_match_table = of_match_ptr(mtp02_dt_ids),
-	},
-	.id_table = mtp02_device_id,
-	.probe =	mtp02_probe,
-	.remove =	mtp02_remove,
+		.driver = {
+				.name =		"mtp02",
+				.owner =	THIS_MODULE,
+				.of_match_table = of_match_ptr(mtp02_dt_ids),
+		},
+		.id_table = mtp02_device_id,
+		.probe =	mtp02_probe,
+		.remove =	mtp02_remove,
 
-	/*
-	 * NOTE:  suspend/resume methods are not necessary here.
-	 * We don't do anything except pass the requests to/from
-	 * the underlying controller.  The refrigerator handles
-	 * most issues; the controller driver handles the rest.
-	 */
+		/*
+		 * NOTE:  suspend/resume methods are not necessary here.
+		 * We don't do anything except pass the requests to/from
+		 * the underlying controller.  The refrigerator handles
+		 * most issues; the controller driver handles the rest.
+		 */
 };
 
 
@@ -491,7 +491,7 @@ static int __init mtp02_init(void)
 	mtp02_class = class_create(THIS_MODULE, "mtp02");
 	if (IS_ERR(mtp02_class)) {
 		unregister_chrdev(MAJOR(mtp02_dev),
-				  mtp02_spi_driver.driver.name);
+				mtp02_spi_driver.driver.name);
 		return PTR_ERR(mtp02_class);
 	}
 	mtp02_class->dev_uevent = mtp02_uevent;
@@ -500,7 +500,7 @@ static int __init mtp02_init(void)
 	if (status < 0) {
 		class_destroy(mtp02_class);
 		unregister_chrdev(MAJOR(mtp02_dev),
-				  mtp02_spi_driver.driver.name);
+				mtp02_spi_driver.driver.name);
 	}
 
 	return status;
