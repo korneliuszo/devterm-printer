@@ -14,14 +14,17 @@
 
 #include "mtp02-ioctl.h"
 
-#define MAX_DEV BIT(MINORBITS) /*32*/	/* ... up to 256 */
+#define MAX_DEV BIT((MINORBITS-1)) /* ... up to 128 */
 
 struct mtp02_device {
 	/* device handling related values */
 	dev_t			devt;
+	dev_t			cups_devt;
 	int			minor;
 	struct device		*dev;
+	struct device		*cups_dev;
 	struct cdev		*cdev;
+	struct cdev		*cups_cdev;
 	struct spi_device	*spi;
 
 	struct pinctrl *pinctrl;
@@ -43,6 +46,17 @@ struct mtp02_device {
 	int default_close_feed;
 	struct mtp02_settings settings;
 	atomic_t used;
+
+	uint32_t cups_ras_magic;
+	uint8_t cups_page_header[1796];
+	uint32_t cups_lines_left;
+	uint32_t cups_advance;
+	enum {
+		CUPS_MAGIC,
+		CUPS_HEADER,
+		CUPS_LINE,
+	} cups_state;
+
 };
 
 static dev_t mtp02_dev = 0;
@@ -146,6 +160,44 @@ static int mtp02_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static int mtp02_cups_open(struct inode *inode, struct file *file)
+{
+	struct mtp02_device	*device;
+
+	mutex_lock(&minor_lock);
+	device = idr_find(&mtp02_idr, iminor(inode)-MAX_DEV);
+	mutex_unlock(&minor_lock);
+	if (!device) {
+		pr_debug("device: minor %d unknown.\n", iminor(inode));
+		return -ENODEV;
+	}
+	if(atomic_cmpxchg(&device->used,0,1))
+		return -EBUSY;
+
+	file->private_data = device;
+
+	gpiod_set_value(device->pwr_gpio,1);
+	mtp02_step(device,0);
+	device->byte_in_line = 0;
+
+	device->settings.close_feed = device->default_close_feed;
+	device->settings.line_feed = 2;
+	device->settings.burn_time = 250;
+	device->settings.burn_count = 10;
+
+	device->cups_state = CUPS_MAGIC;
+	device->cups_advance = 0;
+
+	if(!mtp02_is_paper(device))
+	{
+		gpiod_set_value(device->pwr_gpio,0);
+		atomic_set(&device->used,0);
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
 static int mtp02_release(struct inode *inode, struct file *file)
 {
 	struct mtp02_device * device = file->private_data;
@@ -159,6 +211,18 @@ static int mtp02_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static int mtp02_cups_release(struct inode *inode, struct file *file)
+{
+	struct mtp02_device * device = file->private_data;
+
+	if(device->cups_advance == 2)
+		mtp02_step(device, device->settings.close_feed);
+
+	gpiod_set_value(device->pwr_gpio,0);
+
+	atomic_set(&device->used,0);
+	return 0;
+}
 
 static long mtp02_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -253,6 +317,97 @@ static ssize_t mtp02_write(struct file *file, const char __user *buf, size_t cou
 	return bytes_writen;
 }
 
+static ssize_t mtp02_cups_write(struct file *file, const char __user *buf, size_t count, loff_t *offset)
+{
+	struct mtp02_device * device = file->private_data;
+	int maxbytes; /* maximum bytes that can be read from ppos to BUFFER_SIZE*/
+	int bytes_to_write; /* gives the number of bytes to write*/
+	int bytes_writen; /* number of bytes actually writen*/
+
+	int fullline;
+	uint8_t *buff;
+
+	if(!mtp02_is_paper(device))
+	{
+		return -EBUSY;
+	}
+
+
+
+	switch(device->cups_state)
+	{
+		case CUPS_MAGIC:
+			fullline = 4;
+			buff = (uint8_t*)&device->cups_ras_magic;
+			break;
+		case CUPS_HEADER:
+			fullline = 1796;
+			buff = device->cups_page_header;
+			break;
+		case CUPS_LINE:
+			fullline = 48;
+			buff = device->temp;
+			break;
+	}
+	maxbytes = fullline - device->byte_in_line;
+	if (maxbytes > count)
+		bytes_to_write = count;
+	else
+		bytes_to_write = maxbytes;
+	bytes_writen = bytes_to_write - copy_from_user(&buff[device->byte_in_line], buf, bytes_to_write);
+	*offset += bytes_writen;
+	device->byte_in_line+=bytes_writen;
+	if(device->byte_in_line == fullline)
+	{
+		switch(device->cups_state)
+		{
+		case CUPS_MAGIC:
+			if(device->cups_ras_magic == 0x52615333) // RaS3
+				device->cups_state = CUPS_HEADER;
+			else
+				return -EINVAL;
+			break;
+		case CUPS_HEADER:
+			{
+				uint32_t lines;
+				uint32_t advance_lines;
+				uint32_t width;
+				memcpy(&lines,&device->cups_page_header[376],4);
+				memcpy(&advance_lines,&device->cups_page_header[256],4);
+				memcpy(&width,&device->cups_page_header[372],4);
+				if(width != 384)
+					return -EINVAL;
+				memcpy(&device->cups_advance,&device->cups_page_header[260],4);
+				device->settings.close_feed = advance_lines*2;
+				device->cups_lines_left = lines;
+				device->cups_state = CUPS_LINE;
+				break;
+			}
+		case CUPS_LINE:
+			{
+				uint8_t buf[48];
+				int i;
+				for(i=0;i<48;i+=6)
+				{
+					memset(buf,0,48);
+					memcpy(&buf[i],&device->temp[i],6);
+					mtp02_burn(device,buf);
+				}
+				mtp02_step(device,device->settings.line_feed);
+			if(--device->cups_lines_left == 0)
+			{
+				device->cups_state = CUPS_HEADER;
+				if(device->cups_advance == 4)
+					mtp02_step(device, device->settings.close_feed);
+			}
+			break;
+			}
+		}
+		device->byte_in_line=0;
+	}
+	return bytes_writen;
+}
+
 static int import_gpio_out(struct mtp02_device *device, struct gpio_desc ** gpio, const char* name, enum gpiod_flags flags)
 {
 	*gpio = devm_gpiod_get(&device->spi->dev, name, flags);
@@ -317,6 +472,13 @@ static const struct file_operations mtp02_fops = {
 		.release    = mtp02_release,
 		.unlocked_ioctl = mtp02_ioctl,
 		.write       = mtp02_write
+};
+
+static const struct file_operations mtp02_cups_fops = {
+		.owner      = THIS_MODULE,
+		.open       = mtp02_cups_open,
+		.release    = mtp02_cups_release,
+		.write       = mtp02_cups_write
 };
 
 static int mtp02_probe(struct spi_device *spi)
@@ -407,10 +569,49 @@ static int mtp02_probe(struct spi_device *spi)
 		goto del_cdev;
 	}
 
+	device->cups_devt = MKDEV(MAJOR(mtp02_dev), device->minor+MAX_DEV);
+	device->cups_dev = device_create(mtp02_class,
+			&spi->dev,
+			device->cups_devt,
+			device,
+			"mtp02.%d_cups",
+			device->minor);
+	if (IS_ERR(device->cups_dev)) {
+		pr_err("mtp02: device register failed\n");
+		retval = PTR_ERR(device->dev);
+		goto cups_device_create_failed;
+	} else {
+		dev_dbg(device->cups_dev,
+				"created device for major %d, minor %d\n",
+				MAJOR(mtp02_dev),
+				device->minor);
+	}
+
+	/* create cdev */
+	device->cups_cdev = cdev_alloc();
+	if (!device->cups_cdev) {
+		dev_dbg(device->cups_dev, "allocation of cdev failed");
+		retval = -ENOMEM;
+		goto cups_cdev_failed;
+	}
+	device->cups_cdev->owner = THIS_MODULE;
+	cdev_init(device->cups_cdev, &mtp02_cups_fops);
+	retval = cdev_add(device->cups_cdev, device->cups_devt, 1);
+	if (retval) {
+		dev_dbg(device->dev, "register of cdev failed");
+		goto del_cups_cdev;
+	}
+
 	/* spi setup */
 	spi_set_drvdata(spi, device);
 
 	return 0;
+
+	del_cups_cdev:
+	cdev_del(device->cups_cdev);
+	cups_cdev_failed:
+	device_destroy(mtp02_class, device->cups_devt);
+	cups_device_create_failed:
 
 	del_cdev:
 	cdev_del(device->cdev);
@@ -433,8 +634,10 @@ static int mtp02_remove(struct spi_device *spi)
 	device->spi = NULL;
 
 	device_destroy(mtp02_class, device->devt);
+	device_destroy(mtp02_class, device->cups_devt);
 
 	cdev_del(device->cdev);
+	cdev_del(device->cups_cdev);
 
 	mtp02_free_minor(device);
 

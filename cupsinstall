@@ -1,0 +1,5 @@
+sudo cp cups_trytytka /usr/lib/cups/filter/
+
+
+AppSocket/HP JetDirect
+parallel:///dev/mtp02.0_cups
