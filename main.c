@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/gpio/consumer.h>
+#include <linux/device.h>
 
 #include "mtp02-ioctl.h"
 
@@ -41,6 +42,7 @@ struct mtp02_device {
 	struct gpio_desc	*pap_gpio;
 
 	int pa_step;
+	int feed_time;
 	uint8_t temp[48];
 	int byte_in_line;
 	int default_close_feed;
@@ -108,7 +110,7 @@ static void mtp02_step(struct mtp02_device * device, int steps)
 		{
 			device->pa_step = (device->pa_step +1)%4;
 			mtp02_step_setup(device,device->pa_step);
-			msleep(6);
+			msleep(device->feed_time);
 		}
 	}
 	else
@@ -117,7 +119,7 @@ static void mtp02_step(struct mtp02_device * device, int steps)
 		{
 			device->pa_step = (device->pa_step -1)%4;
 			mtp02_step_setup(device,device->pa_step);
-			msleep(6);
+			msleep(device->feed_time);
 		}
 	}
 	mtp02_step_setup(device,4);
@@ -481,6 +483,31 @@ static const struct file_operations mtp02_cups_fops = {
 		.write       = mtp02_cups_write
 };
 
+static ssize_t feed_time_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct mtp02_device *device = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", device->feed_time);
+}
+
+static ssize_t feed_time_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t len)
+{
+	struct mtp02_device *device = dev_get_drvdata(dev);
+	unsigned long val;
+	char *endp;
+	val = simple_strtoul(buf, &endp, 0);
+	if (buf == endp)
+		return -EINVAL;
+
+	device->feed_time = val;
+
+	return len;
+}
+
+DEVICE_ATTR(feed_time, 0644, feed_time_show, feed_time_store);
+
 static int mtp02_probe(struct spi_device *spi)
 {
 	struct mtp02_device	*device;
@@ -505,8 +532,12 @@ static int mtp02_probe(struct spi_device *spi)
 	if (!device)
 		return -ENOMEM;
 
+	if(device_create_file(&spi->dev, &dev_attr_feed_time))
+		goto create_file_failed;
+
 	/* Initialize the driver data */
 	device->spi = spi;
+	device->feed_time = 6;
 
 	device->pinctrl = devm_pinctrl_get_select_default(&spi->dev);
 	if (IS_ERR(device->pinctrl)) {
@@ -621,6 +652,8 @@ static int mtp02_probe(struct spi_device *spi)
 	mtp02_free_minor(device);
 	minor_failed:
 	GPIO_failed:
+	device_remove_file(&spi->dev, &dev_attr_feed_time);
+	create_file_failed:
 	kfree(device);
 
 	return retval;
@@ -640,6 +673,8 @@ static int mtp02_remove(struct spi_device *spi)
 	cdev_del(device->cups_cdev);
 
 	mtp02_free_minor(device);
+
+	device_remove_file(&spi->dev, &dev_attr_feed_time);
 
 	kfree(device);
 
