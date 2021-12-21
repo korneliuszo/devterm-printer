@@ -46,6 +46,7 @@ struct mtp02_device {
 	uint8_t temp[48];
 	int byte_in_line;
 	int default_close_feed;
+	int default_burnatonce;
 	struct mtp02_settings settings;
 	atomic_t used;
 
@@ -149,6 +150,7 @@ static int mtp02_open(struct inode *inode, struct file *file)
 	device->settings.line_feed = 2;
 	device->settings.burn_time = 250;
 	device->settings.burn_count = 10;
+	device->settings.bytesatonce = device->default_burnatonce;
 
 	printk("mtp02: Device open\n");
 
@@ -186,6 +188,7 @@ static int mtp02_cups_open(struct inode *inode, struct file *file)
 	device->settings.line_feed = 2;
 	device->settings.burn_time = 250;
 	device->settings.burn_count = 10;
+	device->settings.bytesatonce = device->default_burnatonce;
 
 	device->cups_state = CUPS_MAGIC;
 	device->cups_advance = 0;
@@ -283,6 +286,19 @@ static void mtp02_burn(struct mtp02_device *device,uint8_t *buf)
 	}
 }
 
+static void mtp02_burn_segmented(struct mtp02_device *device,uint8_t *buf)
+{
+	uint8_t tmpbuf[48];
+	int i;
+	for(i=0;i<48;i+=device->settings.bytesatonce)
+	{
+		int bytes = min(48-i,device->settings.bytesatonce);
+		memset(tmpbuf,0,48);
+		memcpy(&tmpbuf[i],&buf[i],bytes);
+		mtp02_burn(device,buf);
+	}
+}
+
 static ssize_t mtp02_write(struct file *file, const char __user *buf, size_t count, loff_t *offset)
 {
 	struct mtp02_device * device = file->private_data;
@@ -305,14 +321,7 @@ static ssize_t mtp02_write(struct file *file, const char __user *buf, size_t cou
 	device->byte_in_line+=bytes_writen;
 	if(device->byte_in_line == 48)
 	{
-		uint8_t buf[48];
-		int i;
-		for(i=0;i<48;i+=6)
-		{
-			memset(buf,0,48);
-			memcpy(&buf[i],&device->temp[i],6);
-			mtp02_burn(device,buf);
-		}
+		mtp02_burn_segmented(device,device->temp);
 		mtp02_step(device,device->settings.line_feed);
 		device->byte_in_line=0;
 	}
@@ -387,14 +396,7 @@ static ssize_t mtp02_cups_write(struct file *file, const char __user *buf, size_
 			}
 		case CUPS_LINE:
 			{
-				uint8_t buf[48];
-				int i;
-				for(i=0;i<48;i+=6)
-				{
-					memset(buf,0,48);
-					memcpy(&buf[i],&device->temp[i],6);
-					mtp02_burn(device,buf);
-				}
+				mtp02_burn_segmented(device,device->temp);
 				mtp02_step(device,device->settings.line_feed);
 			if(--device->cups_lines_left == 0)
 			{
@@ -483,14 +485,19 @@ static const struct file_operations mtp02_cups_fops = {
 		.write       = mtp02_cups_write
 };
 
-static ssize_t feed_time_show(struct device *dev, struct device_attribute *attr,
+static ssize_t int_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	struct mtp02_device *device = dev_get_drvdata(dev);
-	return scnprintf(buf, PAGE_SIZE, "%d\n", device->feed_time);
+	if (strcmp("feed_time",attr->attr.name)==0)
+		return scnprintf(buf, PAGE_SIZE, "%d\n", device->feed_time);
+	else if (strcmp("burnatonce",attr->attr.name)==0)
+		return scnprintf(buf, PAGE_SIZE, "%d\n", device->default_burnatonce);
+	else
+		return -EINVAL;
 }
 
-static ssize_t feed_time_store(struct device *dev,
+static ssize_t int_store(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t len)
 {
@@ -501,12 +508,18 @@ static ssize_t feed_time_store(struct device *dev,
 	if (buf == endp)
 		return -EINVAL;
 
-	device->feed_time = val;
-
+	if (strcmp("feed_time",attr->attr.name)==0)
+		device->feed_time = val;
+	else if (strcmp("burnatonce",attr->attr.name)==0)
+		device->default_burnatonce = val;
+	else
+		return -EINVAL;
 	return len;
 }
 
-DEVICE_ATTR(feed_time, 0644, feed_time_show, feed_time_store);
+static DEVICE_ATTR(feed_time, 0644, int_show, int_store);
+static DEVICE_ATTR(burnatonce, 0644, int_show, int_store);
+
 
 static int mtp02_probe(struct spi_device *spi)
 {
@@ -534,10 +547,13 @@ static int mtp02_probe(struct spi_device *spi)
 
 	if(device_create_file(&spi->dev, &dev_attr_feed_time))
 		goto create_file_failed;
+	if(device_create_file(&spi->dev, &dev_attr_burnatonce))
+		goto create_file_failed2;
 
 	/* Initialize the driver data */
 	device->spi = spi;
 	device->feed_time = 6;
+	device->default_burnatonce=6;
 
 	device->pinctrl = devm_pinctrl_get_select_default(&spi->dev);
 	if (IS_ERR(device->pinctrl)) {
@@ -652,6 +668,8 @@ static int mtp02_probe(struct spi_device *spi)
 	mtp02_free_minor(device);
 	minor_failed:
 	GPIO_failed:
+	device_remove_file(&spi->dev, &dev_attr_burnatonce);
+	create_file_failed2:
 	device_remove_file(&spi->dev, &dev_attr_feed_time);
 	create_file_failed:
 	kfree(device);
@@ -674,6 +692,7 @@ static int mtp02_remove(struct spi_device *spi)
 
 	mtp02_free_minor(device);
 
+	device_remove_file(&spi->dev, &dev_attr_burnatonce);
 	device_remove_file(&spi->dev, &dev_attr_feed_time);
 
 	kfree(device);

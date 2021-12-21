@@ -11,6 +11,7 @@ struct mtp02_settings
 	int line_feed;
 	int burn_time;
 	int burn_count;
+	int bytesatonce;
 };
 
 #define MTP02_FEED _IO(MAJOR_NUM,  0)

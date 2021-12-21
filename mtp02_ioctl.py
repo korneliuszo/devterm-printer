@@ -28,8 +28,8 @@ IOC_OUT         = _IOC_READ << _IOC_DIRSHIFT
 
 _IOC_NONE       = 0
 
-settings_keys = ['close_feed','line_feed','burn_time','burn_count']
-settings_struct = 'iiii'
+settings_keys = ['close_feed','line_feed','burn_time','burn_count','bytesatonce']
+settings_struct = 'iiiii'
 
 MTP02_FEED = _IO(100, 0)
 MTP02_GET_SETTINGS = _IOR(100,  1, settings_struct)
