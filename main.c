@@ -295,7 +295,7 @@ static void mtp02_burn_segmented(struct mtp02_device *device,uint8_t *buf)
 		int bytes = min(48-i,device->settings.bytesatonce);
 		memset(tmpbuf,0,48);
 		memcpy(&tmpbuf[i],&buf[i],bytes);
-		mtp02_burn(device,buf);
+		mtp02_burn(device,tmpbuf);
 	}
 }
 
