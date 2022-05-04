@@ -16,7 +16,7 @@ Attribute "TTRasterizer" "" "Type42"
 Attribute "VariablePaperSize" "" "True"
 Filter "application/vnd.cups-raster 100 cups_trytytka"
 ColorDevice False
-VariablePaperSize Yes
+VariablePaperSize No
 
 // cutter
 //Option "CutMedia/Cut Media" PickOne AnySetup 10
@@ -65,11 +65,11 @@ Group "BlankGroup/Blank Options"
   MinSize $POINTS 56
   MaxSize $POINTS 9286
 
- *CustomMedia "X48MMY65MM/48mm x 65mm" $POINTS 182 0 0 0 0 "<</PageSize[$POINTS 182]>>setpagedevice" "<</PageSize[$POINTS 182]>>setpagedevice"
-  CustomMedia "X48MMY105MM/48mm x 105mm" $POINTS 298 0 0 0 0 "<</PageSize[$POINTS 298]>>setpagedevice" "<</PageSize[$POINTS 298]>>setpagedevice"
-  CustomMedia "X48MMY210MM/48mm x 210mm" $POINTS 595 0 0 0 0 "<</PageSize[$POINTS 595]>>setpagedevice" "<</PageSize[$POINTS 595]>>setpagedevice"
-  CustomMedia "X48MMY297MM/48mm x 297mm" $POINTS 842 0 0 0 0 "<</PageSize[$POINTS 842]>>setpagedevice" "<</PageSize[$POINTS 842]>>setpagedevice"
-  CustomMedia "X48MMY3276MM/48mm x 3276mm" $POINTS 9286 0 0 0 0 "<</PageSize[$POINTS 9286]>>setpagedevice" "<</PageSize[$POINTS 9286]>>setpagedevice"
+ *CustomMedia "48.05x64.21mm.Fullbleed" $POINTS 182 0 0 0 0 "<</PageSize[$POINTS 182]/ImagingBBox null>>setpagedevice" "<</PageSize[$POINTS 182]/ImagingBBox null>>setpagedevice"
+  CustomMedia "48.05x105.13mm.Fullbleed" $POINTS 298 0 0 0 0 "<</PageSize[$POINTS 298]/ImagingBBox null>>setpagedevice" "<</PageSize[$POINTS 298]/ImagingBBox null>>setpagedevice"
+  CustomMedia "48.05x209.9mm.Fullbleed" $POINTS 595 0 0 0 0 "<</PageSize[$POINTS 595]>/ImagingBBox null>setpagedevice" "<</PageSize[$POINTS 595]/ImagingBBox null>>setpagedevice"
+  CustomMedia "48.05x297.04mm.Fullbleed" $POINTS 842 0 0 0 0 "<</PageSize[$POINTS 842]/ImagingBBox null>>setpagedevice" "<</PageSize[$POINTS 842]/ImagingBBox null>>setpagedevice"
+  CustomMedia "48.05x3275.89mm.Fullbleed" $POINTS 9286 0 0 0 0 "<</PageSize[$POINTS 9286]/ImagingBBox null>>setpagedevice" "<</PageSize[$POINTS 9286]/ImagingBBox null>>setpagedevice"
 
   // Clockworkpi CPI-58
   {
