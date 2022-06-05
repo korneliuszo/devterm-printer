@@ -57,7 +57,7 @@ Group "BlankGroup/Blank Options"
 
 // 58mm printers
 {
-  #define POINTS 136.197
+  #define POINTS 136
   #define PIXELS 384
 
   // model num is used by filter to determine raster width. 384 for 48mm, 560 for 70mm
