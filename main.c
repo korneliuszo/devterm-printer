@@ -677,7 +677,7 @@ static int mtp02_probe(struct spi_device *spi)
 	return retval;
 }
 
-static int mtp02_remove(struct spi_device *spi)
+static void mtp02_remove(struct spi_device *spi)
 {
 	struct mtp02_device	*device = spi_get_drvdata(spi);
 
