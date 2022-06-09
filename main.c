@@ -697,7 +697,7 @@ static void mtp02_remove(struct spi_device *spi)
 
 	kfree(device);
 
-	return 0;
+	return;
 }
 
 static const struct of_device_id mtp02_dt_ids[] = {
