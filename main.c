@@ -68,7 +68,7 @@ static DEFINE_MUTEX(minor_lock); /* Protect idr accesses */
 
 static struct class *mtp02_class = NULL;
 
-static int mtp02_uevent(struct device *dev, struct kobj_uevent_env *env)
+static int mtp02_uevent(const struct device *dev, struct kobj_uevent_env *env)
 {
 	add_uevent_var(env, "DEVMODE=%#o", 0666);
 	return 0;
